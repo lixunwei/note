@@ -1,0 +1,1 @@
+fc-list -f "%{family}\n" :lang=zh #可以列出字体的字体族名

@@ -1,0 +1,102 @@
+## 一、页面设置
+
+a4 会给你一个较小的页面，为了使用更多的控制，可用 geometry宏包和命令 \layout 。
+
+## 二、改变长度
+
+在latex里改变长度的命令是 \addtolength 和 \setlength。latex可认的是 cm, mm, in 和 pt. 变量可设为负数。一个例子是 *\addtolength{\parindent}{-5mm}*
+
+### 页面设置,一些有用的变量
+
+1. \columnsep: 列间距
+2. \topmargin: 页眉到页边的距离
+3. \topskip: 页眉与正文的距离
+4. \textheight: 正文的高度
+5. \textwidth: 文本的宽度
+6. \oddsidemargin: 奇数页的左面页边距
+7. \evensidemargin : 偶数页的左面页边距
+
+### 段落
+1. \parindent: 段落缩进距离
+2. \parskip: 段落间的距离
+
+### 浮动图表
+
+1. \floatsep: 浮动对象之间的距离
+2. \textfloatsep: 最后一个浮动对象顶端或第一个浮动对象底端与正文之间的距离
+3. \intextsep : 文中浮动顶端与底端所留的距离
+4. \dbltextfloatsep 是在双列输出时用 \textfloatsep 的数值
+5. \dblfloatsep 是在双列输出时用 \floatsep 的数值
+6. \abovecaptionskip: 标题上方的距离
+7. \belowcaptionskip: 标题下方的距离
+
+### 数学公式
+
+1. \abovedisplayskip: 公式前的距离
+2. \belowdisplayskip: 公式后面的距离
+3. \arraycolsep: 在一个array中列之间的空白长度
+
+### 列表
+
+1. \topsep: 第一个item和前面版落间的距离
+2. \partopsep: 当在一个新页开始时加到 \topsep 的额外空间
+3. \itemsep: 连续items之间的距离。
+
+## 三、环境
+
+宏包 atbeginend.sty 提供了 \BeforeBegin{environment}{code-to-execute}, \AfterEnd 等等命令。这些命令可去掉环境外面和内部的空间。例如 \AfterBegin{itemize}{\addtolength{\itemsep}{-\baselineskip}} 就在环境内以重新设置 \itemsep 来压缩items之间的距离 。
+
+mdwlist 宏包有一个 itemize* 环境； paralist 宏包提供了一个item之间距离压缩环境和一个使每个item不在新的一段开始的 inparaenum 环境。
+
+## 四、图表
+
+为了节约空间，可用 subfigure 宏包把多幅图形放在一人图形环境中，也可用 floatflt 宏包把图形用文本包围起来。
+
+当有图表时， LaTeX 缺省值不会在超过 70% 的页中加文本。这个可有 \begin{document}加上
+
+\renewcommand\floatpagefraction{.9}
+\renewcommand\topfraction{.9}
+\renewcommand\bottomfraction{.9}
+\renewcommand\textfraction{.1}
+\setcounter{totalnumber}{50}
+\setcounter{topnumber}{50}
+\setcounter{bottomnumber}{50}
+
+即可。
+另外，可用 caption宏包减少标题尺寸。
+
+对于一个大的表格，可用 \setlength{\tabcolsep}{1pt}来减少表格的列间距离；也可用\resizebox{!}{5cm}{\begin{tabular} ... \end{tabular}}把整个表格当作一个图形
+
+## 五、标题
+
+一个标题周围的距离是由 \parskip, \baselineskip等来决定的，要注意的是 LaTeX 宁愿在一页中留下空白，也不愿把一个标题放在此页的底部。如果你要重新定义这些命令，就应该仔细的读一下 titlesec 宏包。
+
+## 六、文献里面的内容
+
+宏包 mulitoc 可让在单列文本中有一个两列的表格内容存在。
+
+可用 setspace 宏包来减少文献中的行间距离（在文本中也是一个道理）
+```
+\begin{spacing}{0.9}
+\tableofcontents
+\end{spacing}
+...
+
+\begin{spacing}{0.9}
+\bibliographystyle{plain}
+\bibliography{refs}
+\end{spacing}
+```
+
+选用了 natbib 宏包的话（推荐），就可以用 \bibsep 来控制items之间的距离。否则就可在导言区里用下面的命令。
+```
+\let\oldthebibliography=\thebibliography
+\let\endoldthebibliography=\endthebibliography
+\renewenvironment{thebibliography}[1]{%
+\begin{oldthebibliography}{#1}%
+\setlength{\parskip}{0ex}%
+\setlength{\itemsep}{0ex}%
+}%
+{%
+\end{oldthebibliography}%
+```

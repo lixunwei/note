@@ -1,0 +1,48 @@
+# 常用语法
+
+## 通用语法
+* \documentclass{article} %article表示普通文章,book表示书籍
+* \begin{document}%表示文章正文开始
+* \end{document}%表示文章正文结束
+
+ (\newconmmand{\新命令名}[参数个数]{内容})
+* \newcommand{**\song**}{\CJKfamily{song}}%宋体
+
+## 控制语法
+
+*\let\command1=\command2%相当于C语言赋值
+
+## 字体大小设置
+* \newcommand{\yihao}{\fontsize{26pt}{36pt}\selectfont}% 一号, 1.4 倍行距
+* \newcommand{\erhao}{\fontsize{22pt}{28pt}\selectfont}% 二号, 1.25倍行距
+* \newcommand{\xiaoer}{\fontsize{18pt}{18pt}\selectfont}% 小二, 单倍行距
+* \newcommand{\sanhao}{\fontsize{16pt}{24pt}\selectfont}% 三号, 1.5倍行距
+* \newcommand{\xiaosan}{\fontsize{15pt}{22pt}\selectfont}% 小三, 1.5倍行距
+* \newcommand{\sihao}{\fontsize{14pt}{21pt}\selectfont}% 四号, 1.5 倍行距
+* \newcommand{\banxiaosi}{\fontsize{13pt}{19.5pt}\selectfont}% 半小四, 1.5倍行距
+* \newcommand{\xiaosi}{\fontsize{12pt}{18pt}\selectfont}% 小四, 1.5倍行距
+* \newcommand{\dawuhao}{\fontsize{11pt}{11pt}\selectfont}% 大五号, 单倍行距
+* \newcommand{\wuhao}{\fontsize{10.5pt}{15.75pt}\selectfont}% 五号, 单倍行距
+
+# 常用宏包
+
+## indentfirst
+>
+
+* \noindent%取消首行缩进,不能在导⾔区使用
+
+## fontspec
+>可以让LaTeX使用系统字体的宏包
+
+* \newcommand{\tnewroman}{\fontspec{Times New Roman}}(\tnewroman string)
+
+## xeCJK
+>中文标点,符号,字体等设置
+
+* \setCJKmainfont{SimSun}%{字体族,SimSun是下载的}
+* \setCJKmonofont{Consolas}%设置等宽字体
+
+# 附录资料
+
+## 宏包资料
+* /usr/share/doc/texlive-doc/xelatex/xecjk/xeCJK.pdf
