@@ -1,0 +1,13 @@
+## titlesec
+>使用titlesec宏包
+
+syntax: 
+```
+\sethead[偶数页左页眉][偶数页中页眉][偶数页右页眉]
+{奇数页左页眉}{奇数页中页眉}{奇数页右页眉}\newpagestyle{main}{
+
+\sethead{\small\S\,\thesection\quad\sectiontitle}{}{$\cdot$~\thepage~$\cdot$}
+\setfoot{}{}{}\headrule}
+\pagestyle{main}
+```
+

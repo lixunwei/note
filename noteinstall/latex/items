@@ -1,0 +1,17 @@
+## 列表设置
+
+### 无序列表
+
+\begin{itemize}
+  \item javascript
+  \item html
+  \item css
+\end{itemize}
+
+### 有序列表
+
+\begin{enumerate}
+  \item javascript
+  \item html
+  \item css
+\end{enumerate}

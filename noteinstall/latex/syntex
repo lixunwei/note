@@ -27,7 +27,7 @@
 # 常用宏包
 
 ## indentfirst
->
+
 
 * \noindent%取消首行缩进,不能在导⾔区使用
 
@@ -41,6 +41,17 @@
 
 * \setCJKmainfont{SimSun}%{字体族,SimSun是下载的}
 * \setCJKmonofont{Consolas}%设置等宽字体
+
+## geometry
+>设置页面边距
+
+＊ \usepackage[top=2.5cm,botoom=2.5cm,left=2.0cm,right=2.0cm]{geometry}
+
+## titlesec
+>设置标题字体，格式等
+
+＊ \titleformat{command}[shape]{format}{label}{sep}{before}[after]
+
 
 # 附录资料
 

@@ -1,0 +1,19 @@
+## 所需的宏包
+
+\usepackage{xcolor}
+\usepackage{mdframed}
+
+## 操作方法 
+
+``` shell
+\begin{mdframed}[backgroundcolor=lightgray,hidealllines=true]
+\begin{verbatim}
+
+darren@darren-VirtualBox:~$ls -al
+drwxrwxr-x  4 darren darren      4096  5月  4 00:29 lixunwei
+drwxr-xr-x  3 darren darren      4096  4月 20 14:37 .local
+drwx------  4 darren darren      4096  4月 21 07:46 .mozilla
+
+\end{verbatim}
+\end{mdframed}
+```

@@ -1,0 +1,5 @@
+## titlesec
+>用来设置字体
+
+syntax:\titleformat{command}[shape]{format}{label}{sep}{before}[after]\\
+format其中有字体大小设置：Huge > Large > big > medium > small > tiny
