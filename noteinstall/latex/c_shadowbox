@@ -1,0 +1,4 @@
+## listings
+
+设置C语言等编程语言的代码框，设置字体部份：\setmonofont[Mapping={}]{Monaco}
+然后在lstset中设置字体：basicstyle=\footnotesize\ttfamily

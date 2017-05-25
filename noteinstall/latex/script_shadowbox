@@ -17,3 +17,9 @@ drwx------  4 darren darren      4096  4月 21 07:46 .mozilla
 \end{verbatim}
 \end{mdframed}
 ```
+
+## 调色
+
+\definecolor{ubuntured}{RGB}{44,0,30}
+\begin{mdframed}[backgroundcolor=ubuntured,fontcolor=white,hidealllines=true]
+
