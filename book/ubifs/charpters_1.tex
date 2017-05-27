@@ -1,0 +1,14 @@
+\chapter{UBIFS简介}
+无序区块镜像文件系统(Unsorted Block Image File System, UBIFS)是用于固态存储设备上，并与LogFS相互竞争，作为JFFS2的后继文件系统之一。
+
+UBIFS是专门为了解决MTD（Memory Technology Device）设备所遇到的性能瓶颈而设计的。由于Nand Flash容量的暴涨，YAFFS等皆无法操控大的Nand Flash空间。UBIFS通过子系统UBI处理与MTD device之间的动作。与JFFS2一样，UBIFS 建构于MTD device 之上，因而与一般的block device(例如: emmc, sd-card等)不兼容。
+
+\section{UBIFS子系统}
+JFFS2与UBIFS区别是，JFFS2是可以直接操作MTD设备，而UBIFS是工作在UBI卷上。因此对于UBIFS来说其实有三个子系统：
+\begin{itemize}
+  \item MTD子系统，它提供了访问flash的标准接口，并向上层应用程序提供类似/dev/mtd[0-99]接口
+  \item UBI子系统，它为flash提供了损耗均衡与卷管理系统，UBI是MTD的高层次表示，为UBIFS处理flash的坏块管理与损耗均衡等工作
+  \item UBIFS文件系统，工作在UBI卷上
+\end{itemize}
+
+

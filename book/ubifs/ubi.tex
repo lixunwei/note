@@ -1,0 +1,48 @@
+\documentclass[a4paper,oneside]{book}
+\usepackage[pagestyles]{titlesec}
+\usepackage{xeCJK}
+\usepackage{fontspec}
+\usepackage[top=2.0cm,bottom=2.0cm,left=2.0cm,right=2.0cm]{geometry}
+\usepackage{xcolor}
+\usepackage{color}
+\usepackage{mdframed}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{fancybox}
+\usepackage{indentfirst}
+%\usepackage[pagestyles]{titlesec}%设置章节标题格式，居中(center)
+\setmainfont{Times New Roman}%设置英文主字体
+\setCJKmainfont{AR PL UKai TW MBE}%设置中文主字体
+\setmonofont[Mapping={}]{Ubuntu Mono}%设置等宽字体
+
+\renewcommand{\baselinestretch}{1.2}%设置行距，1.2倍行距
+\titleformat{\chapter}{\Huge\bfseries}{第\thechapter 章}{1em}{}%command=chapter,format=\centring...,label=第\thechapter...其它忽略
+\titlespacing*{\chapter}{0pt}{\baselineskip}{\baselineskip}%设置章下面的空白
+\titleformat{\section}{\Large\bfseries}{\thesection}{1em}{}%设置节字体大小，属性
+
+\newcommand{\wordred}[1]{{\color{red}{#1}}}
+
+%页眉与页脚设置
+\newpagestyle{main}{
+\sethead{\small\S\,\thesection\quad\sectiontitle}{}{$\cdot$~\thepage~$\cdot$}%这里是单页面页眉设置，不能用于双页面
+\setfoot{}{}{}\headrule}
+\pagestyle{main}
+
+%设置C语言代码框
+\lstset{numbers=left,
+numberstyle=\footnotesize,
+basicstyle=\footnotesize\ttfamily,
+keywordstyle=\color{blue!70},
+commentstyle=\color{red!50!green!50!blue!50},
+frame=shadowbox,
+rulesepcolor=\color{red!20!green!20!blue!20},
+tabsize=4,%设置tab键空格数
+escapeinside=@@%设置逃逸字串，用来显示代码框的中文
+}
+
+\definecolor{ubuntured}{RGB}{44,0,30}
+\begin{document}
+\input{charpters_1}
+\input{charpters_mtd}
+\input{charpters_2}
+\end{document}
