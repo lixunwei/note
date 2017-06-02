@@ -9,7 +9,7 @@
 \end{itemize}
 UBI镜像在ubuntu上的调试与制作只需要进行如下工具安装：
 
-\begin{mdframed}[backgroundcolor=lightgray,hidealllines=true]
+\begin{mdframed}[backgroundcolor=ubuntured,fontcolor=white,hidealllines=true]
 \begin{verbatim}
 
 darren@darren:~$sudo apt-get install mtd-untils
@@ -19,7 +19,7 @@ darren@darren:~$sudo apt-get install mtd-untils
 
 \section{ubi文件结构主要参数分析}
 在挂载ubi文件系统之前，首先要清楚它的几个参数，PEB( Physical Erase Block )，LEB( Logical Erase Blcok )，Page Size，下面是分析linux rootfs的过程：
-\begin{mdframed}[backgroundcolor=lightgray,hidealllines=true]
+\begin{mdframed}[backgroundcolor=ubuntured,fontcolor=white,hidealllines=true]
 \begin{verbatim}
 
 darren@darren:~$ hexdump -C mdm-perf-recovery-image-mdm9607-perf.ubi | grep "UBI#"
@@ -35,7 +35,7 @@ darren@darren:~$ hexdump -C mdm-perf-recovery-image-mdm9607-perf.ubi | grep "UBI
 \end{mdframed}
 
 "UBI\#"是struct ubi\_ec\_hdr的魔数，这里的魔数可以简单的理解为标识一个PEB的开始，这里的魔数值可在内核代码中查到，由上可得\wordred{PEB SIZE ＝ 0x0004,0000 - 0x0000,0000 = 256KB}
-\begin{mdframed}[backgroundcolor=lightgray,hidealllines=true]
+\begin{mdframed}[backgroundcolor=ubuntured,fontcolor=white,hidealllines=true]
 \begin{verbatim}
 
 darren@darren:~$ hexdump -C mdm-perf-recovery-image-mdm9607-perf.ubi | grep "UBI!"
@@ -62,11 +62,11 @@ LEB的大小是PEB减去所有头部后剩下的空间，PEB的所头部就是st
 \includegraphics[keepaspectratio,width=\textwidth,height=0.75\textheight]{img/20170517170203.png}
 \end{figure}
 根据上图获取的信息，就可以使用modprobe nandsim在ubuntu上模拟一个MTD设备了,nandsim的fourth\_id\_byte是我们关注的参数，其它参数可以从ONFI文档中获取
-\begin{mdframed}[backgroundcolor=lightgray,hidealllines=true]
+\begin{mdframed}[backgroundcolor=ubuntured,fontcolor=white,hidealllines=true]
 \begin{verbatim}
 
-darren@darren:~$ sudo modprobe nandsim first_id_byte=0xec second_id_byte=0xd3
-third_id_byte=0x10 fourth_id_byte=0xa6
+darren@darren:~$ sudo modprobe nandsim first_id_byte=0xec second_id_byte=0xd3 third_id_byte=0x10 
+fourth_id_byte=0xa6
 darren@darren:~$ mtdinfo /dev/mtd0
 mtd0
 Name:                           NAND simulator partition 0
@@ -83,7 +83,7 @@ Device is writable:             true
 \end{verbatim}
 \end{mdframed}
 安装ubi模块，并利用uevent生成/dev/ubi\_ctrl设备节点
-\begin{mdframed}[backgroundcolor=lightgray,hidealllines=true]
+\begin{mdframed}[backgroundcolor=ubuntured,fontcolor=white,hidealllines=true]
 \begin{verbatim}
 
 darren@darren:~$ sudo modprobe ubi
@@ -93,7 +93,7 @@ root@darren:~$ echo "add" > /sys/devices/virtual/misc/ubi_ctrl/uevent
 \end{verbatim}
 \end{mdframed}
 将ubi镜像刷入虚拟MTD分区中
-\begin{mdframed}[backgroundcolor=lightgray,hidealllines=true]
+\begin{mdframed}[backgroundcolor=ubuntured,fontcolor=white,hidealllines=true]
 \begin{verbatim}
 
 darren@darren:~$ sudo ubiformat /dev/mtd0 -f mdm9607-perf-sysfs.ubi -O 4096
@@ -104,7 +104,7 @@ darren@darren:~$ sudo ubiformat /dev/mtd0 -f mdm9607-perf-sysfs.ubi -O 4096
 \vspace{12 pt}
 
 \noindent 建立MTD设备与ubi联系，并挂载ubi文件系统
-\begin{mdframed}[backgroundcolor=lightgray,hidealllines=true]
+\begin{mdframed}[backgroundcolor=ubuntured,fontcolor=white,hidealllines=true]
 \begin{verbatim}
 
 darren@darren:~$ sudo ubiattach -m 0 -O 4096
@@ -120,7 +120,7 @@ darren@darren:~$ sudo mount -t ubifs /dev/ubi0_1 usrfs/
 
 \section{反向制作ubi镜像}
 制作ubi镜像主要用到两个工具，mkfs.ubifs与ubinize。mkfs.ubifs产生的是ubifs，其中是没有卷标信息的，是不能直接烧写到flash上，但可以通过bootloader中的ubi write函数进行烧写。ubinize产生的是完整的ubi镜像，可以直接烧到flash上进行挂载操作。
-\begin{mdframed}[backgroundcolor=lightgray,hidealllines=true]
+\begin{mdframed}[backgroundcolor=ubuntured,fontcolor=white,hidealllines=true]
 \begin{verbatim}
 
 darren@darren:~$ mkfs.ubifs -m 4096 -e 253952  -c 2146 -r rootfs/ -F -o rootfs.ubifs
@@ -137,7 +137,7 @@ Options:
 \end{verbatim}
 \end{mdframed}
 ubi文件系统做好后，就可以利用ubinize来进行ubi镜像制作。这里要注意，有些ubi镜像包含多个卷，那么每个\wordred{需要内容的卷}都是需要用mkfs.ubifs进行文件系统制作。不需要内容的卷可以直接使用ubinize创建新卷（例如下边的cache卷就是不需要内容的卷）。使用ubinize时，需要一个配置文件，这里写了一个配置文件ubinize.ini
-\begin{mdframed}[backgroundcolor=lightgray,hidealllines=true]
+\begin{mdframed}[backgroundcolor=ubuntured,fontcolor=white,hidealllines=true]
 \begin{verbatim}
 
 darren@darren:~$ cat ubinize.ini
@@ -176,7 +176,7 @@ Options:
 至此反向制作的镜像就完成了，system.ubi可以使用前面的方法挂载到ubuntu中使用，也可以直接烧写到模块中进行验证。
 \section{删除虚拟MTD设备}
 虚拟的MTD设备就是一个nandsim模块，卸载这个模块就行了，在卸载之前，需要把所有挂载在它上面的ubi文件系统umount掉，然后把它与ubi的连接断开
-\begin{mdframed}[backgroundcolor=lightgray,hidealllines=true]
+\begin{mdframed}[backgroundcolor=ubuntured,fontcolor=white,hidealllines=true]
 \begin{verbatim}
 
 darren@darren:~$ sudo umount rootfs/ usrfs/
