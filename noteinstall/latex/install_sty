@@ -1,0 +1,12 @@
+## 宏包下载网站
+www.ctan.org
+
+## 宏包安装方法(algorithmic为例)
+* 生成sty: latex algorithms.ins.ins
+* 创建/usr/share/texmf/tex/latex/algorithms目录,并把*.sty复制进来
+* sudo texhash
+
+## 宏包pdf安装方法
+* 创建/usr/share/doc/texlive-doc/latex/algorithms
+* 把pdf文件复制进/usr/share/doc/texlive-doc/latex/algorithms目录
+* sudo texhash
