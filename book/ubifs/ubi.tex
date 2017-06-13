@@ -10,6 +10,9 @@
 \usepackage{caption}
 \usepackage{fancybox}
 \usepackage{indentfirst}
+\usepackage{dirtree}
+\usepackage[titles]{tocloft}
+\usepackage{hyperref}
 %\usepackage[pagestyles]{titlesec}%设置章节标题格式，居中(center)
 \setmainfont{Times New Roman}%设置英文主字体
 \setCJKmainfont{AR PL UKai TW MBE}%设置中文主字体
@@ -40,7 +43,25 @@ tabsize=4,%设置tab键空格数
 escapeinside=@@%设置逃逸字串，用来显示代码框的中文
 }
 
+%设置框类型，单边，红色
+\mdfsetup{skipabove=\topskip,skipbelow=\topskip}
+\global\mdfdefinestyle{leftredline}{
+linecolor=red,
+linewidth=3pt,
+topline=false,
+bottomline=false,
+rightline=false,
+font=\footnotesize,
+}
+
+%设置代码目录树
+\renewcommand*\DTstylecomment{\rmfamily\textsc}
+\renewcommand*\DTstyle{\ttfamily\textcolor{black}}
+
+%目录设置
+
 \definecolor{ubuntured}{RGB}{44,0,30}
+
 \begin{document}
 \input{charpters_1}
 \input{charpters_mtd}
