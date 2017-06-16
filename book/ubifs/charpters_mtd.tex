@@ -83,7 +83,7 @@ struct mtd_info {
 	void (*_put_device) (struct mtd_info *mtd);
 	struct backing_dev_info *backing_dev_info;
 	struct notifier_block reboot_notifier;
-	struct mtd_ecc_stats ecc_stats; //ecc较验统计，坏块数量，较验次数等
+	struct mtd_ecc_stats ecc_stats; //ecc较验统计，坏块数量，较验次数等(每个分区独立统计)
 	void *priv; //mtd_info私有数据，通常指向nand_chip结构体
 	struct device dev;
 	int usecount;
@@ -142,7 +142,7 @@ struct nand_chip {
 	
 	int chip_delay;
 	unsigned int options;
-	/*
+	/**
 	 * NAND_BBT_USE_FLASH：坏块表存在flash中，内核可以直接读出
 	 * NAND_BBT_SCANLASTPAGE：
 	 */
@@ -206,17 +206,8 @@ struct nand_ecc_ctrl {
 			const uint8_t *buf, int oob_required); //原始写，不带ecc较验
 	int (*read_page)(struct mtd_info *mtd, struct nand_chip *chip,
 			uint8_t *buf, int oob_required, int page); //带ecc读，返回max-bitflip
-	int (*read_subpage)(struct mtd_info *mtd, struct nand_chip *chip,
-			uint32_t offs, uint32_t len, uint8_t *buf, int page);
-	int (*write_subpage)(struct mtd_info *mtd, struct nand_chip *chip,
-			uint32_t offset, uint32_t data_len,
-			const uint8_t *data_buf, int oob_required);
 	int (*write_page)(struct mtd_info *mtd, struct nand_chip *chip,
 			const uint8_t *buf, int oob_required); //写入数据后，把数据的ecc较验码也写进去
-	int (*write_oob_raw)(struct mtd_info *mtd, struct nand_chip *chip,
-			int page);
-	int (*read_oob_raw)(struct mtd_info *mtd, struct nand_chip *chip,
-			int page);
 	int (*read_oob)(struct mtd_info *mtd, struct nand_chip *chip, int page); //读oob区
 	int (*write_oob)(struct mtd_info *mtd, struct nand_chip *chip,
 			int page); //写oob区
@@ -230,11 +221,11 @@ struct nand_ecc_ctrl {
 上面介绍的是接口类，是MTD架构中通用的东西，但涉及MTD具体使用时，是必须考虑平台的，这里以s3c2410与高通9x07平台为例，s3c2410是比较规范的按照MTD框架来写驱动程序，比较适合于学习MTD驱动框架。
 \begin{mdframed}[style=leftredline]
 \begin{verbatim}
---s3c24xx_nand_probe() //这是s3c24xx平台的Nand驱动开始的地方，probe函数原理参看linux设备驱动模型
-----s3c2410_nand_init_chip() //对nand_chip，nand_ecc_ctrl结构体里的回调函数，数据进行初始化赋值
-----nand_scan_ident() //扫描nand device有多少，记录数目和它们的容量大小
-----nand_scan_tail() //nand_scan最后的扫描，主要对ecc相关函数进行赋值，并且在最后会扫描坏块表
-----s3c2410_nand_add_partition() //建立mtd分区，下面描述
+s3c24xx_nand_probe() //这是s3c24xx平台的Nand驱动开始的地方，probe函数原理参看linux设备驱动模型
+|--s3c2410_nand_init_chip() //对nand_chip，nand_ecc_ctrl结构体里的回调函数，数据进行初始化赋值
+|--nand_scan_ident() //扫描nand device有多少，记录数目和它们的容量大小
+|--nand_scan_tail() //nand_scan最后的扫描，主要对ecc相关函数进行赋值，并且在最后会扫描坏块表
+|--s3c2410_nand_add_partition() //建立mtd分区，下面描述
 \end{verbatim}
 \end{mdframed}
 MTD驱动架构的存在简化上层开发者的工作量，MTD初始化流程也是对MTD框架的内容进行填充，在nand\_base.c文件中有很多MTD默认函数，s3c2410初始化nand flash过程中，如果s3c2410\_nand\_init\_chip中未定义的MTD函数，都会在nand\_base.c中获得一个默认的操作函数。
@@ -253,16 +244,16 @@ struct mtd_partition {
 分区表的划分就是根据mtd\_partition结构体来的，填充多少个这样的结构体就会产生多少个分区，可以说mtd\_partition就是分区表。分区表获取，分区注册过程如下（以s3c2410为例，其它平台类似)：
 \begin{mdframed}[style=leftredline]
 \begin{verbatim}
---s3c2410_nand_add_partition() //这个函数会简单处理一下注册的参数
-----mtd_device_parse_register() //它的types参数决定它用什么方法解析分区表
-------parse_mtd_partition() //解析分区表，并将解析内容填充到mtd_partition结构体中
-----add_mtd_partitions() //创建并填充slave mtd_info，然后进行mtd_info注册(它的输入参数是mtd分区表)
-------add_mtd_device() //mtd设备注册，并同时注册char,block等设备
+s3c2410_nand_add_partition() //这个函数会简单处理一下注册的参数
+|--mtd_device_parse_register() //它的types参数决定它用什么方法解析分区表
+|  |--parse_mtd_partition() //解析分区表，并将解析内容填充到mtd_partition结构体中
+|--add_mtd_partitions() //创建并填充slave mtd_info，然后进行mtd_info注册(它的输入参数是mtd分区表)
+|  |--add_mtd_device() //mtd设备注册，并同时注册char,block等设备
 \end{verbatim}
 \end{mdframed}
 分区表解析函数分析过程如下：
 \begin{lstlisting}[language=C]
-/*
+/**
  * mtd: master mtd_info，分区的mtd_info很多参数都是自于master mtd_info
  * types: 决定parse_mtd_partitions将调用哪个解析方法来解析，设NULL，则采用默认参数
  * parts: 是未调用系统解析方法输入进去的参数，如果系统方法解析失败，就使用parts分区表。
@@ -299,8 +290,164 @@ int mtd_device_parse_register(struct mtd_info *mtd, const char * const *types,
 }
 \end{lstlisting}
 
-\section{MTD设备层}
-MTD设备层已经导出到用户空间，上层应用可以通过MTD字符设备与块设备来对flash进行访问。MTD字符设备提供了很多丰富的功能，包括获取MTD设备信息，坏块的判断，ECC状态获取等
+\section{MTD核心层与设备层}
+MTD核心层向内核其它的模块提供了MTD API，内核模块想要使用MTD，只应该通过核心层提供的服务，不能绕过核心层直接使用底层服务。核心层最大的服务对象就是文件系统，文件系统通过MTD API来实现flash的操作。
+
+MTD设备层将内核操作导出到用户空间，上层应用可以通过MTD字符设备与块设备来对flash进行访问。MTD字符设备提供了很多丰富的功能，包括获取MTD设备信息，坏块的判断，ECC状态获取等。MTD块设备是通过RAM模拟的block device，很多需要挂载在块设备上的文件系统就可以通过MTD块设备来挂载。
+\subsection{MTD核心层API}
+MTD核心层提供的API很多，可以去mtdcore.h中寻找EXPORT\_SYMBOL等相关宏导出符号的函数，被导出的符号就是MTD向外提供的API
+\begin{itemize}
+  \item mtd\_read()，读分区的数据，参数需要分区的偏移与读取的长度
+  \item mtd\_read\_oob()，读flash的OOB区域数据，OOB中存有坏块信息与ECC较验码等信息
+  \item mtd\_write()，向flash中写入数据，参数需要页对齐的偏移量与写入长度（mtdcore未提供write\_oob接口）
+  \item mtd\_erase()，擦除指定分区，擦除是异步动作，调用擦除的进程会休眠，擦除完成后被唤醒
+  \item mtd\_block\_mardbad()，标记一个块为坏块，文件系统管理坏块时会使用
+  \item get\_mtd\_device()，根据mtd\_info的idr可以找到相应的mtd\_info(参看mtdchar\_open()的使用)
+  \item get\_mtd\_device\_nm()，根据名字获得mtd\_info（参看mount\_mtd()的使用）
+\end{itemize}
+
+选取上面的读函数分析MTD工作的完整过程：
+\begin{lstlisting}[language=C]
+/**
+ * mtd_read：mtd_info是指定分区的mtd_info(slave)，from也是分区内偏移，也就是相对偏移
+ * len是想要读取数据的长度，retlen是回参，返回实际读取到的字节数，读取的数据写进buf参数中
+ */
+int mtd_read(struct mtd_info *mtd, loff_t from, size_t len, size_t *retlen,
+	     u_char *buf)
+{
+	int ret_code;
+	*retlen = 0;
+	if (from < 0 || from >= mtd->size || len > mtd->size - from) //mtd->size是分区大小
+		return -EINVAL;
+	if (!len)
+		return 0;
+	/**
+	 * ret_code是正整数：代表的发生了多少位的bit-flip，0代表成功
+	 * ret_code是负数：代表read发生的错误，一般有EUCLEAN与EBADMSG错误
+	 * mtd_read实际上会调用分区的mtd->_read()，也就是part_read()，
+	 */
+	ret_code = mtd->_read(mtd, from, len, retlen, buf);
+	if (unlikely(ret_code < 0))
+		return ret_code;
+	if (mtd->ecc_strength == 0)
+		return 0;	/* device lacks ecc */
+	return ret_code >= mtd->bitflip_threshold ? -EUCLEAN : 0;
+}
+EXPORT_SYMBOL_GPL(mtd_read);
+
+/**
+ * part_read：分区读，它主要是调用master mtd_info的_read函数去读flash
+ * 其它作用就是统计分区较验过多少位的bit-flip，发生多少次不可较验的错误
+ */
+static int part_read(struct mtd_info *mtd, loff_t from, size_t len,
+		size_t *retlen, u_char *buf)
+{
+	struct mtd_part *part = PART(mtd);
+	struct mtd_ecc_stats stats;
+	int res;
+
+	stats = part->master->ecc_stats;
+	res = part->master->_read(part->master, from + part->offset, len,
+				  retlen, buf); //这里的read才是核心的读取动作，part->offset是分区偏移
+	if (unlikely(mtd_is_eccerr(res)))
+		mtd->ecc_stats.failed += //统计分区发生不可较验的错误次数
+			part->master->ecc_stats.failed - stats.failed;
+	else
+		mtd->ecc_stats.corrected += //统计分区较验过多少位的bit-flip
+			part->master->ecc_stats.corrected - stats.corrected;
+	return res;//返回值可能是－EBADMSG或发生的bit-flips位数
+}
+
+/**
+ * master mtd->_read由平台去实现，每个平台的nand flash控制器不同，实现也就不同。
+ * 硬件ECC实现： 1. 先读出page内容 2.紧接着从寄存器中读出硬件对这个page较验出的
+ * ECC码 3. 从OOB中读出page存储的ECC code 4. 对比新旧ECC码，然后较验纠错。（有些平台
+ * 的nand控制器还带有硬件自比纠错功能）
+ * 软件ECC实现：1. 用raw read读出page+oob内容 2. 用软件算法算出读出的page的ECC码
+ * 3. 对比计算出的ECC码与OOB中存储的ECC码，进行纠错
+ * 下面选取s3c2410平台分析一下：这个平台的mtd->_read = nand_read
+ */
+ static int nand_read(struct mtd_info *mtd, loff_t from, size_t len,
+		     size_t *retlen, uint8_t *buf)
+{
+	struct mtd_oob_ops ops;
+	int ret;
+	nand_get_device(mtd, FL_READING); //多进程阻塞访问
+	ops.len = len;
+	ops.datbuf = buf; //读取数据的缓存区
+	ops.oobbuf = NULL; //oobbuf为NULL，不读取oob
+	ops.mode = MTD_OPS_PLACE_OOB;
+	/**
+	 * nand_do_read_ops比较复杂，它需要处理一些特殊情况，1. 地址不是page对齐
+	 * 2. 是否需要读oob数据 3. 读失败后复位flash重新读取(重读次数可以设置)
+	 * 根据软件配置不同，nand_do_read_ops会选择hw ecc read，soft ecc read
+	 * 或no ecc read等多种情况，下面挑一个hw ecc read解释，原理都差不多
+	 * 返回值：读成功，返回发生的bit-flips位数（>=0），bit-flips超出较验能力
+	 * 则返回-EBADMSG
+	 */
+	ret = nand_do_read_ops(mtd, from, &ops);
+	*retlen = ops.retlen;
+	nand_release_device(mtd); //唤醒阻塞进程
+	return ret;
+}
+/**
+ * nand_read_page_hwecc：这个是带硬件ECC读page函数
+ * oob_required：确定是否读取oob数据，这个函数未使用
+ */
+static int nand_read_page_hwecc(struct mtd_info *mtd, struct nand_chip *chip,
+				uint8_t *buf, int oob_required, int page)
+{
+	int i, eccsize = chip->ecc.size;
+	int eccbytes = chip->ecc.bytes;
+	int eccsteps = chip->ecc.steps;
+	uint8_t *p = buf;
+	uint8_t *ecc_calc = chip->buffers->ecccalc;
+	uint8_t *ecc_code = chip->buffers->ecccode;
+	uint32_t *eccpos = chip->ecc.layout->eccpos;
+	unsigned int max_bitflips = 0;
+
+	for (i = 0; eccsteps; eccsteps--, i += eccbytes, p += eccsize) {
+		chip->ecc.hwctl(mtd, NAND_ECC_READ);
+		chip->read_buf(mtd, p, eccsize);
+		chip->ecc.calculate(mtd, p, &ecc_calc[i]);//从寄存器中读出ecc较验码（new）
+	}
+	chip->read_buf(mtd, chip->oob_poi, mtd->oobsize);//读出OOB数据
+	for (i = 0; i < chip->ecc.total; i++)
+		ecc_code[i] = chip->oob_poi[eccpos[i]];//根据ecc_layout从OOB中得到ecc较验码（old）
+
+	eccsteps = chip->ecc.steps;
+	p = buf;
+
+	for (i = 0 ; eccsteps; eccsteps--, i += eccbytes, p += eccsize) {
+		int stat;
+
+		stat = chip->ecc.correct(mtd, p, &ecc_code[i], &ecc_calc[i]);//开始ECC纠错计算
+		if (stat < 0) {
+			/*如果无法纠错，mtd的读失败次数+1，这里会导致nand_read函数返回－EBADMSG*/
+			mtd->ecc_stats.failed++;
+		} else {
+			mtd->ecc_stats.corrected += stat;//如果纠错成功，mtd加上纠错的bit-flip位数
+			max_bitflips = max_t(unsigned int, max_bitflips, stat);
+		}
+	}
+	return max_bitflips;//返回发生的bit-flips位数
+}
+
+/**
+ * 上面是正常的读page数据过程，nand flash中还有一种数据需要关注就是OOB数据
+ * 读OOB数据与正常读page相差不大，mtd core提供的API为mtd_read_oob()，from
+ * 参数是OOB所在页的地址，在mtd_oob_ops *ops传入oob的偏移，长度，buf，mode
+ * 等参数。
+ * 这个函数会通过底层read_oob()函数获取一个页面完整的OOB数据，这个数据会根据
+ * mtd_oob_ops *ops参数调用nand_transfer_oob()函数进行截取（有时我们只需要
+ * OOB中间的ECC数据，或坏块数据）
+ */
+int mtd_read_oob(struct mtd_info *mtd, loff_t from, struct mtd_oob_ops *ops) 
+\end{lstlisting}
+
+
+\clearpage
+
 \subsection{MTD字符设备}
 MTD字符设备节点类似于/dev/mtd0(主设备号为90)这样，应用可以直接调用open/read/write/ioctl等系统调用来操作这个MTD的字符设备。下面来分析一下在内核空间，MTD为字符设备提供了哪些服务
 \begin{lstlisting}[language=C]
@@ -310,25 +457,29 @@ MTD字符设备节点类似于/dev/mtd0(主设备号为90)这样，应用可以�
 static const struct file_operations mtd_fops = {
 	.llseek		= mtdchar_lseek,//提供对flash分区地址定位
 	.read		= mtdchar_read,//开始读flash，字节读(事实是读一个page，上传一个字节而已)
-	/* write操作需要size参数page对齐，否则会返回无效参数的错误。nand flash的特点是先擦除，
+	/**
+	 * write操作需要size参数page对齐，否则会返回无效参数的错误。nand flash的特点是先擦除，
 	 * 后写入，所以不能对flash进行覆盖写。MTD提供了擦除操作，也提供了写入操作，但并不会在
 	 * 写入之前进行flash是否擦除的检查，这就需要文件系统来做写入前是否擦除的保证
 	 */
 	.write		= mtdchar_write,
-	/* ioctl的command定义在mtd_abi.h（内核空间）,用户空间mtd-untils工具集中也在mtd_abi.h中
+	/**
+	 * ioctl的command定义在mtd_abi.h（内核空间）,用户空间mtd-untils工具集中也在mtd_abi.h中
 	 * MEMGETINFO：获取mtd信息（推荐使用sysfs读取mtd信息）
 	 * MEMERASE：擦除指定块
 	 * MEMGETBADBLOCK：判断指定块是否是坏块
 	 * ECCGETSTATS：可以获取ECC状态，以及当前坏块数量等信息
 	 */
 	.unlocked_ioctl	= mtdchar_unlocked_ioctl,
-	.open		= mtdchar_open, //mtd_file_info初始化
+	/* open函数最关键的点是通过次设备号获取分区的mtd_info，其次是mtd_file_info结构体初始化 */
+	.open		= mtdchar_open, 
 	.release	= mtdchar_close,
 	.mmap		= mtdchar_mmap, //上层应用进行mmapj映射
 	.get_unmapped_area = mtdchar_get_unmapped_area,
 };
 \end{lstlisting}
 
+\clearpage
 \section{MTD坏块管理}
 严格来说，MTD是不具备坏块管理功能的，它只是向文件系统或应用程序提供了坏块判断，坏块信息写入OOB以及坏块表管理等机制。因此可以说MTD是坏块管理机制的实现者，而不是坏块管理策略的实现者。例如，对于UBI来说，它是具备坏块管理功能的，通过UBIFS来读写flash是不需要关注是否有坏块的。
 \subsection{坏块判断}
@@ -338,7 +489,7 @@ MTD坏块表功能不是必须的，高通9x07平台并未使用MTD坏块表功�
 \begin{lstlisting}[language=C]
 /*只有当坏块表是放在flash中时，才会使用到这个描述符*/
 struct nand_bbt_descr {
-	/*
+	/**
 	 * NAND_BBT_LASTBLOCK：坏块表放在最后一个好块上
 	 * NAND_BBT_WRITE：如果有需要，可以写bbt
 	 * NAND_BBT_2BIT：用2bit表示一个块（好块2bit都是0，坏块2bit都是1），1个字节就能描述4个块
@@ -358,29 +509,57 @@ struct nand_bbt_descr {
 \begin{mdframed}[style=leftredline]
 \begin{verbatim}
 /* 坏块表创建以后，在判断时，会首先从表中查询，以此加快坏块判断速度 */
---nand_scan_tail() //前面有解释
-----nand_default_bbt() //建立内核MTD坏块表，通过NAND_BBT_USE_FLASH标记确定定坏块是否存放在flash中
-------nand_scan_bbt() //搜索与建立坏块表，不管坏块表是否在flash中，都要把它放在chip->bbt指向的内存中
---------nand_memory_bbt() //flash中没有坏块表，基于内存创建坏块表
-----------create_bbt() //扫描flash所有块，将坏块信息写入到chip->bbt中
---------search_read_bbts() //flash中有坏块表，从flash中读出来
-----------search_bbt() //把坏块表从flash中读出，坏块表所在的page放在nand_bbt_descr的pages中
---------check_create() //检查上面读出的坏块表，决定是否需要重新创建和写入bbt
-----------read_abs_bbt() //读flash指定页的bbt
-------------read_bbt() //真正的读flash page函数
---------------bbt_mark_entry() //从flash读出的坏块信息，解析后填充到chip->bbt中
---------mark_bbt_region() //把坏块表所在的块标记为保留，防止其它进程异常擦写坏块表块
+nand_scan_tail() //前面有解释
+|--nand_default_bbt() //建立内核MTD坏块表，通过NAND_BBT_USE_FLASH标记确定定坏块是否存放在flash中
+|  |--nand_scan_bbt() //搜索与建立坏块表，不管坏块表是否在flash中，都要把它放在chip->bbt指向的内存中
+|  |  |--nand_memory_bbt() //flash中没有坏块表，基于内存创建坏块表
+|  |     |--create_bbt() //扫描flash所有块，将坏块信息写入到chip->bbt中
+|  |--search_read_bbts() //flash中有坏块表，从flash中读出来
+|  |  |--search_bbt() //把坏块表从flash中读出，坏块表所在的page放在nand_bbt_descr的pages中
+|  |--check_create() //检查上面读出的坏块表，决定是否需要重新创建和写入bbt
+|  |  |--read_abs_bbt() //读flash指定页的bbt
+|  |     |--read_bbt() //真正的读flash page函数
+|  |        |--bbt_mark_entry() //从flash读出的坏块信息，解析后填充到chip->bbt中
+|  |--mark_bbt_region() //把坏块表所在的块标记为保留，防止其它进程异常擦写坏块表块
 /* 坏块表更新，当系统运行时出现新的坏块，系统会调用模块导出函数mtd_block_markbad()去标记坏块，并写到bbt中 */
---mtd_block_markbad() //发现坏块调用这个函数在OOB中进行标记，并产生其它处理
-----mtd->_block_markbad()
-----**nand_markbad_bbt() //把坏块信息写入了坏块表中如果坏块表是基于flash的，还需要写到flash中
---------nand_update_bbt() //如果坏块表是基于flash的，还需要回写到flash中
+mtd_block_markbad() //发现坏块（擦除失败）调用这个函数在OOB中进行标记，并产生其它处理
+|--mtd->_block_markbad()
+|  |**nand_markbad_bbt() //把坏块信息写入了坏块表中如果坏块表是基于flash的，还需要写到flash中
+|     |--nand_update_bbt() //如果坏块表是基于flash的，还需要回写到flash中
 \end{verbatim}
 \end{mdframed}
 
 \clearpage
 \section{NandFlash ECC较验}
+NandFlash由于本身的硬件特性，会导致NandFlash读取数据时偶尔出现位翻转（bit-flip），位翻转是指原本是1的位变成0，或者原本是0的位变成1。常见原因如下：
+\begin{itemize}
+  \item 漂移效应（Drifting Effects），Nand Flash中cell的电压值，慢慢地变了，变的和原始值不一样了
+  \item 编程干扰（Program-Disturb Errors），也称过度编程效应（over-program effect），由于某个页面写操作，而导致其它页面某个位跳变
+  \item 读取干扰（Read-Disturb Errors），由于读取操作，使得页面某一位产生永久变化
+\end{itemize}
 
+NandFlash的位翻转会给系统带来很多未知的风险，因此需要用ECC较验算法去保证NandFlash数据的正确性。下面介绍几种常用的ECC算法：
+\begin{itemize}
+  \item Hanming Code，常用于SLC，较验能力较弱，可以纠正1位错误，检测2位错误
+  \item BCH Code，由Bose，Chaudhuri，Hocquenghem三人独立发明。可以纠正多个位翻转错误，设置的纠错能力越强，ECC码需要的空间就越大
+  \item RS Code（Reed-Solomon），按多位组合编码，它其实是是一种非二进制的BCH码
+\end{itemize}
+\subsection{Hanming Code分析}
+Hanming Code一般用在SLC中，因为SLC是单层的，发生位翻转可能性比MLC与TLC低，Hanming一般一次较验256字节或512字节。下图是Hanming Code产生图
+\begin{figure}[htbp]
+\centering
+\includegraphics[keepaspectratio,width=\textwidth,height=0.75\textheight]{img/Hanming.png}
+\end{figure}
+
+其中的CP代表的是列极性，LP代表是行极性。单位是bit，极性值的算法是对所在行或列所有数据求异或值。例如：$CP0＝Bit0 \oplus Bit2 \oplus Bit4 \oplus Bit6$  ，$CP4＝Bit0 \oplus Bit1 \oplus Bit2 \oplus Bit3$(这里的Bit0是对256个字节数据的所有0位求异或的结果，Bit1...7求法相同)结果会存在类似ECC CODE中，如下：
+\begin{figure}[htbp]
+\centering
+\includegraphics[keepaspectratio,width=\textwidth,height=0.75\textheight]{img/HanmingCode.png}
+\end{figure}
+
+因为总共只有22位数据，所以最后空白的两位用1填充。可以看出Hanming码占用的OOB空间非常小，256字节较验只占3个字节不到，512字节较验刚好占了三个字节。Hanming算法的思想是，当flash发生位翻转时，先用列极性得出哪一位发生错误，再用行极性得到哪个字节发生错误，最然对错误的位取反就可以了，但它只能纠正一位翻转错误，超过一位就无能为力了。Hanming软件算法有很多种，可以参看内核提供的一种，源码在nand\_ecc.c中
+
+\subsection{BCH Code分析}
 
 
 

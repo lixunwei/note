@@ -3,12 +3,20 @@
 
 UBIFS是专门为了解决MTD（Memory Technology Device）设备所遇到的性能瓶颈而设计的。由于Nand Flash容量的暴涨，YAFFS等皆无法操控大的Nand Flash空间。UBIFS通过子系统UBI处理与MTD device之间的动作。与JFFS2一样，UBIFS 建构于MTD device 之上，因而与一般的block device(例如: emmc, sd-card等)不兼容。
 
-\section{UBIFS子系统}
+\section{UBI子系统}
 JFFS2与UBIFS区别是，JFFS2是可以直接操作MTD设备，而UBIFS是工作在UBI卷上。因此对于UBIFS来说其实有三个子系统：
 \begin{itemize}
   \item MTD子系统，它提供了访问flash的标准接口，并向上层应用程序提供类似/dev/mtd[0-99]接口
   \item UBI子系统，它为flash提供了损耗均衡与卷管理系统，UBI是MTD的高层次表示，为UBIFS处理flash的坏块管理与损耗均衡等工作
   \item UBIFS文件系统，工作在UBI卷上
 \end{itemize}
+
+UBI卷，与分区概念类似，一个分区是一组连续的物理地址的集合，而卷是一组连续的逻辑地址集合，所以卷中的擦除块又称为逻辑擦除块。这个逻辑块可以映射到分区上任一个物理块上。UBI有两种卷类型，可读写的动态卷与只读的静态卷。
+
+UBI坏块管理，UBI的存在使得UBIFS不用关注坏块问题。UBI会在flash中预留一部分的冗余块，这些块是用来替换使用过程中出现的坏块。UBI将旧块数据移动到替换块上，然后改变UBI卷中的逻辑块到物理块的映射关系。
+
+UBI冲刷机制，因为ECC的存在，flash少量的bit-flip是不会导致系统出现问题的，但是bit-flip累积到一定数量就会导致系统出现问题。UBI冲刷是针对出现bit-flip的块，把待冲刷块数据移到其它块上，然后对这个块进行擦除操作，以确定它是不是坏块。
+
+UBI损耗均衡，UBI会记录每一个块擦除次数，对于擦除次数过多的块，会把它的数据移到擦除次数少的块，然后改变卷的逻辑块到物理块的映射。
 
 
