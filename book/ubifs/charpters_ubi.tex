@@ -1,1 +1,261 @@
 \chapter{UBI子系统分析}
+\section{UBI ATTACH}
+在使用ubifs文件系统之前，需要先在内核中安装ubi模块，然后将ubifs镜像文件attach到ubi中，然后执行挂载操作。为什么ubifs不能像ext2等文件系统一样直接挂载使用呢？因为ubifs不是建立在flash基础上，而是建立在ubi子系统上的，因此在使用ubifs前需要先让镜像与ubi建立关系。ubi子系统不仅可以供ubifs使用，也能提供给其它文件系统使用。
+
+\subsection{ubi重要数据结构}
+\begin{lstlisting}[language=C]
+/*
+ * ubi_device是在UBI做ATTACH时建立的，代表一个MTD分区。一个ubi_device下面可以存在多个卷
+ */
+struct ubi_device {
+	struct cdev cdev; // 类似/dev/ubi0
+	struct device dev; //ubi设备驱动模型
+	int ubi_num; //ubi编号(/dev/ubi0就是0)
+	char ubi_name[sizeof(UBI_NAME_STR)+5]; //ubi设备名，一般就是ubi[0..99]
+	int vol_count; //这个ubi设备有多少个卷（外部卷＋内部卷）
+	struct ubi_volume *volumes[UBI_MAX_VOLUMES+UBI_INT_VOL_COUNT]; //卷指针数组，用于查找卷
+	spinlock_t volumes_lock; //用于保护ubi设备的引用计数等临界数据
+	int ref_count; //ubi设备引用计数，ref_count不为0代表有进程正在使用ubi设备，此时不能删除ubi设备
+	int image_seq; //顺序号，主要用于一个LEB映射到多个PEB的情况
+	int rsvd_pebs; //该ubi设备所有卷占用的擦除块数量之和(包括冗余块在内)
+	int avail_pebs; //初始化时使用，初始值为分区块数量减去坏块数量，然后使用这个值去分配其它块数量
+	int beb_rsvd_pebs; //实际为坏块保留的擦除块数量（如果空闲块充足，它与beb_rsvd_level相等）
+	int beb_rsvd_level; //正常情况下应该为坏块保留的擦除块数量（冗余块）
+	int bad_peb_limit; //一个ubi设备最大坏块数量限制，超过这个数量，ubi设备将不能使用
+	int autoresize_vol_id; //这个参数为autosize卷准备的，一个ubi设备最多只有一个autosize卷
+	int vtbl_slots; //该ubi设备支持的卷的数量
+	int vtbl_size; //vtbl_slots * sizeof(struct ubi_vtbl_record)
+	struct ubi_vtbl_record *vtbl; //ubi设备的卷记录表(从卷层中读出)
+	struct mutex device_mutex;
+	int max_ec; //记录ubi设备最大擦除计数
+	int mean_ec; //平均擦除计数
+	unsigned long long global_sqnum; //全局顺序号，不停在增加(一般写LEB头部时增加)
+	spinlock_t ltree_lock;
+	struct rb_root ltree;
+	struct mutex alc_mutex;
+	/* 这些红黑树上都是挂的ubi_wl_entry结构 */
+	struct rb_root used; //已使用的物理擦除块红黑树
+	struct rb_root erroneous; //在搬迁数据时发生读错误的块会被挂在这个树上
+	struct rb_root free; //被擦除后未使用的块，可以直接写入数据
+	int free_count; //free块数量
+	struct rb_root scrub; //发生了可纠正的bit-flip错误会被挂在擦洗树中
+	/* 搬迁数据时卷被删除或待搬迁数据的LEB被释放时，把原先与LEB映射的PEB挂入保护链表 */
+	struct list_head pq[UBI_PROT_QUEUE_LEN]; 
+	int pq_head;
+	spinlock_t wl_lock; //WL子系统的work锁，一般用在唤醒，添加，删除work时
+	struct mutex move_mutex;
+	struct rw_semaphore work_sem;
+	int wl_scheduled; //非0表示WL work被调度，用来阻止重复调度
+	struct ubi_wl_entry **lookuptbl; //查询wl_entry的表，用pnum当参数(每个物理块都有这个结构)
+	struct ubi_wl_entry *move_from; //数据从一个物理块搬迁到另一个物理块时使用
+	struct ubi_wl_entry *move_to; //同上
+	int move_to_put;
+	struct list_head works;
+	int works_count;
+	struct task_struct *bgt_thread;//ubi设备的后台进程，一般启动擦除块，scrub块等工作 
+	int thread_enabled;//为0代表不唤醒ubi设备的后台进程
+	char bgt_name[sizeof(UBI_BGT_NAME_PATTERN)+2];//后台进程名，ps会显示出来
+	bool scrub_in_progress;
+	atomic_t scrub_work_count;
+	/* I/O sub-system's stuff */
+	long long flash_size;
+	int corr_peb_count; //损坏块数量，不再参与损耗平衡
+	int erroneous_peb_count; //数据搬迁时，待搬迁块发生读错误（非bit-flip）
+	int max_erroneous; //最大允许的错误块，一般为整个PEB的10％
+	int min_io_size;
+	int hdrs_min_io_size;
+	int ro_mode;
+	int leb_size; //LEB = PEB - 头部（ec与vid）
+	int leb_start; //LEB_OFFSET = PEB_ADDR - 头部SIZE
+	int ec_hdr_alsize;
+	unsigned int bad_allowed:1;
+	unsigned int nor_flash:1; //norflash与nandflash标志
+	int max_write_size; //从mtd的writebufsize中获取，一般为一个pagesize
+	struct mtd_info *mtd;//指向一个MTD分区
+	void *peb_buf; //一个PEB大小的缓冲区，一般用在后台进程擦除块，做块擦洗动作
+	struct mutex buf_mutex;
+	struct mutex ckvol_mutex;
+	struct ubi_debug_info dbg;
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=C]
+/* UBI卷描述符，里面大量信息由卷层中的信息填充(ubi_read_volume_table)，
+ * attach时由ubi_ainf_volume等信息来填充
+ */
+struct ubi_volume {
+	struct device dev; //它的父设备是ubi_device的dev
+	struct cdev cdev; //类似于/dev/ubi0_0
+	struct ubi_device *ubi; //通过卷信息找到它所属的ubi设备
+	int vol_id; //卷ID，在attach时由ubi_ainf_volume赋值
+	int ref_count; //引用计数
+	int readers; //以读方式持有该卷的进程数量
+	int writers; //以读写方式持有该卷的进程数量
+	int exclusive; //该卷是否被独占持有的标志
+	int metaonly;
+	int reserved_pebs; //该卷保留的PEB数量（制作UBI镜像时指定的，从卷表中读出）
+	int vol_type; //动态卷与静态卷
+	int usable_leb_size; //leb size
+	int used_ebs;
+	int last_eb_bytes;
+	long long used_bytes;
+	int alignment;
+	int data_pad;
+	int name_len; //卷名长度
+	char name[UBI_VOL_NAME_MAX + 1]; //卷名
+	int upd_ebs;
+	int ch_lnum;
+	long long upd_bytes;
+	long long upd_received;
+	void *upd_buf;
+	int *eba_tbl; //用来建立卷的peb与leb的映射关系
+	unsigned int checked:1;
+	unsigned int corrupted:1;
+	unsigned int upd_marker:1;
+	unsigned int updating:1;
+	unsigned int changing_leb:1;
+	unsigned int direct_writes:1;
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=C]
+/* MTD设备attach信息，attach的信息会用在ubi的wl,eba,io等子系统上
+ * 仅在attch时使用，attach结束后释放
+ */
+struct ubi_attach_info {
+	struct rb_root volumes; //一个ubi设备上的卷挂在这里
+	struct list_head corr; //一个ubi设备上所有损坏块都挂在这里，用于wl初始化
+	struct list_head free; //一个ubi设备上所有空闲块
+	struct list_head erase; //attach时发现的需要擦除的块（包括由power cut造成的损坏块)
+	struct list_head alien; //不兼容块，指内部卷的块
+	int corr_peb_count;
+	int empty_peb_count; //EC头为0XFF的数量，空块会挂在erase链表上，会重新初始化
+	int alien_peb_count;
+	int bad_peb_count; //坏块数量
+	int maybe_bad_peb_count; //可能是坏块，但是在OOB中没有坏块标记
+	int vols_found; //已发现卷的数量
+	int highest_vol_id;
+	int is_empty;
+	int min_ec; //最小擦除次数（从scand_peb时更新）
+	int max_ec; //最大擦除数
+	unsigned long long max_sqnum; //该ubi设备目前sqnum最大值,sqnum在PEB头部中
+	int mean_ec; //所有块的平均擦除次数
+	uint64_t ec_sum; //所有块总的擦除次数
+	int ec_count;
+	struct kmem_cache *aeb_slab_cache; //定义一个slab
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=C]
+/* attach关于卷信息填写，仅在attach时使用，attach结束后释放掉*/
+struct ubi_ainf_volume {
+	int vol_id; //卷ID
+	int highest_lnum; //该卷最大逻辑编号，从0开始
+	int leb_count;
+	int vol_type; //动态卷与静态卷
+	int used_ebs; //静态卷专有
+	int last_data_size;
+	int data_pad;
+	int compat; //内部卷使用
+	struct rb_node rb; //通过rb node挂载到ubi_attach_info的volumes中
+	struct rb_root root; //上面挂载的是ubi_ainf_peb信息（包含一个卷所有的物理擦除块）
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=C]
+/* ubi_ainf_peb记录一个物理擦除块的信息，同一块擦除块可能有多个多个ubi_ainf_peb，一个
+ * 通过rb node挂在ubi_ainf_volume的rb root中，其它的通过list挂入ubi_attach_info中
+ * attach流程结束后，会释放所有的ubi_ainf_peb结构的内存
+ */
+struct ubi_ainf_peb {
+	int ec; //该PEB的擦除次数
+	int pnum; //PEB编号
+	int vol_id; //PEB所属卷的ID
+	int lnum; //PEB逻辑映射编号
+	unsigned int scrub:1; //是否需要擦洗状态标志
+	unsigned int copy_flag:1;
+	unsigned long long sqnum;
+	union {
+		struct rb_node rb; //用rb node挂在ubi_ainf_volume的红黑树上
+		struct list_head list; //用list挂在ubi_attach_info的对应链表上
+	} u;
+};
+\end{lstlisting}
+
+\clearpage
+
+\subsection{UBI Attach流程}
+UBI attach是为了建立UBI层与MTD分区连接，具体工作需要填充ubi\_device与ubi\_volume结构体，启动UBI WL子系统与EBA子系统，创建UBI层的用户层接口，创建后台工作线程处理flash擦除与写入工作。
+UBI attach过程中还需要分配冗余块，每1024个块最多有多少坏块由宏CONFIG\_MTD\_UBI\_BEB\_LIMIT决定（一般为20），而这个限制值减去已标记坏块数量就是冗余块数量（如果当前空闲块不足，则以当前剩余块为准）
+在attach过程中需要扫描每个PEB块，每个PEB块都有一个EC头部与VID头部(EC记录块擦除记数信息，VID记录卷ID信息)，LEB就是PEB去了头部后内容。下面简单分析一下attach流程
+\begin{mdframed}[style=leftredline]
+\begin{verbatim}
+ubi_attach_mtd_dev() //ubi attach起始函数，内核可以直接调用，用户空间通过/dev/ubi_ctrl调用
+|--io_init() //初始化ubi_device的IO参数
+|--ubi_attach() //初始化ubi所需的数据，ubi信息进入内存
+|  |--scan_all() //扫描一个MTD分区所有的PEB块
+/*
+ * scan_peb会读取PEB块的头部，会根据头部信息创建UBI卷attach信息ubi_ainf_volume，
+ * scan_peb会比较VID头部sqnum信息，如果有两个PEB具有相同的LEB逻辑号，则会把sqnum
+ * 小的PEB挂到erase链表中（前提是sqnum大的不出出CRC较验错误），scan_peb还会较验每
+ * 块EC，VID，data等数据，然后将它们挂在不同的链表中。
+ */
+|  |  |--scan_peb() //具体的块扫描函数
+|  |  |  |--ubi_add_to_av() //将PEB加到对应ubi_ainf_volume中
+|  |--ubi_read_volume_table() //从卷层中读出卷表信息，ubi_device的vtbl指向它
+|  |--ubi_wl_init() //初始化并启动UBI WL子系统(它有一个内核线程去做擦除与负载均衡的操作)
+|  |--ubi_eba_init() //初始化UBI EBA子系统，EBA管理着LEB与PEB的映射，以及封装UBI的读写接口
+|  |  |--ubi_calculate_reserved() //计算需要为坏块管理保留多少冗余块
+|  |--destory_ai() //清除attach时创建的数据，包括ubi_ainf_peb，ubi_ainf_volume等
+\end{verbatim}
+\end{mdframed}
+UBI attach过程会把每个PEB块都进行分类，分类如下：
+\begin{itemize}
+  \item free，空闲块
+  \item used，正常使用块
+  \item corr，损坏块，不再使用
+  \item alien，异常块，不再使用
+  \item scrub，擦洗块，块上数据需要搬迁到其它块上，然后对其进行erase操作，以确认它是否是坏块
+  \item torture，拷问块，块上数据需要搬迁到其它块上，然后对其反复erase操作，以确认它是否是坏块
+\end{itemize}
+块的分类是根据scan\_peb时出现的错误进行分类的，错误如下几类：
+\begin{itemize}
+  \item UBI\_IO\_FF（UBI\_IO\_FF\_BITFLIPS），表示读出的数据只有0XFF，BITFLIPS表示出现了可较验的位翻转
+  \item UBI\_IO\_BAD\_HDR，EC或VID出现损坏（magic不匹配或CRC较验失败）
+  \item UBI\_IO\_BAD\_HAD\_EBADMSG，EC或VID出现损坏（MTD上报的无法较验的ECC错误）
+  \item UBI\_IO\_BITFLIPS，读数据出现可较验的位翻转
+\end{itemize}
+\clearpage
+\begin{tabu} to \hsize {|X[3.5,l]|X[3.5,l]|X[2,l]|X|}
+\hline
+ubi\_ec\_hdr(ERR) & ubi\_vid\_hdr(ERR) & data(ERR) & PEB\_LIST\\ \hline
+TRUE & TRUE & TRUE & used\\ \hline
+UBI\_IO\_FF 或
+UBI\_IO\_FF\_BITFLIPS & X & X & erase\\ \hline
+UBI\_IO\_BAD\_HDR 或
+UBI\_IO\_BAD\_HDR\_EBADMSG & UBI\_IO\_BAD\_HDR 或
+UBI\_IO\_BAD\_HDR\_EBADMSG & X & erase
+(POWER CUT)\\ \hline
+UBI\_IO\_BAD\_HDR 或
+UBI\_IO\_BITFLIPS 或
+UBI\_IO\_BAD\_HDR\_EBADMSG & UBI\_IO\_FF & X & erase\\ \hline
+UBI\_IO\_BITFLIPS & X & X & scrub\\ \hline
+TRUE & UBI\_IO\_FF & X & free\\ \hline
+TRUE & UBI\_IO\_BAD\_HDR 或
+UBI\_IO\_BAD\_HDR\_EBADMSG & EBADMSG 或
+UBI\_IO\_FF 或
+UBI\_IO\_BITFLIPS & erase
+(POWER CUT)\\ \hline
+TRUE & UBI\_IO\_BAD\_HDR 或
+UBI\_IO\_BAD\_HDR\_EBADMSG & TRUE & corr\\ \hline
+X & BIT\_IO\_BITFLIPS 或
+UBI\_IO\_FF\_BITFLIPS & X & scrub\\ \hline
+X & X & BIT\_IO\_BITFLIPS & scrub\\ \hline
+X & VOL\_ID异常 且 
+UBI\_COMPAT\_DELETE & X & erase\\ \hline
+X & VOL\_ID异常 且 
+UBI\_COMPAT\_PRESERVE & X & alien\\ \hline
+X & VOL\_ID异常 且 
+UBI\_COMPAT\_RO & X & ro\\ \hline
+\end{tabu}
+
