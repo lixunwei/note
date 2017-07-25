@@ -1,0 +1,10 @@
+1. lib/kobject_uevent.c中会调用uevent_helper
+2. 默认情况下uevent_helper是空的,在有设备加入linux系统时,也不会执行
+3. 内核接口/sys/kernel/uevent_helper是可以设置uevent_helper程序的
+4. uevent_helper的sysfs接口是在kenel/ksysfs.c中定义的
+5. 写/proc/sys/kernel/hotplug效果等价
+6. 嵌入式设备通常写的是/sbin/mdev
+
+EXAMPLE:
+echo "/sbin/hot.sh" > /sys/kernel/uevent_helper
+这个时候向电脑中插入U盘等设备,hot.sh脚本就会被调用

@@ -1,0 +1,89 @@
+1. device_add()这个函数会调用device_create_file(dev, &dev_attr_uevent)创建uevent节点
+
+2. dev_attr_uevent中一个show与store函数,uevent_show与uevent_store
+
+3. 其中uevent_store实现如下:
+static ssize_t uevent_store(struct device *dev, struct device_attribute *attr,
+{
+    enum kobject_action action;
+    if (kobject_action_type(buf, count, &action) == 0)
+        kobject_uevent(&dev->kobj, action);//向应用程序发送uevent事件
+    else
+        dev_err(dev, "uevent: unknown action-string\n");
+    return count;
+}
+
+
+static int dev_uevent(struct kset *kset, struct kobject *kobj,
+		      struct kobj_uevent_env *env)
+{
+	struct device *dev = kobj_to_dev(kobj);
+	int retval = 0;
+
+	/* add device node properties if present */
+	if (MAJOR(dev->devt)) {
+		const char *tmp;
+		const char *name;
+		umode_t mode = 0;
+		kuid_t uid = GLOBAL_ROOT_UID;
+		kgid_t gid = GLOBAL_ROOT_GID;
+
+		add_uevent_var(env, "MAJOR=%u", MAJOR(dev->devt));//定义MAJOR
+		add_uevent_var(env, "MINOR=%u", MINOR(dev->devt));
+		name = device_get_devnode(dev, &mode, &uid, &gid, &tmp);
+		if (name) {
+			add_uevent_var(env, "DEVNAME=%s", name);
+			if (mode)
+				add_uevent_var(env, "DEVMODE=%#o", mode & 0777);
+			if (!uid_eq(uid, GLOBAL_ROOT_UID))
+				add_uevent_var(env, "DEVUID=%u", from_kuid(&init_user_ns, uid));
+			if (!gid_eq(gid, GLOBAL_ROOT_GID))
+				add_uevent_var(env, "DEVGID=%u", from_kgid(&init_user_ns, gid));
+			kfree(tmp);
+		}
+	}
+
+	if (dev->type && dev->type->name)
+		add_uevent_var(env, "DEVTYPE=%s", dev->type->name);
+
+	if (dev->driver)
+		add_uevent_var(env, "DRIVER=%s", dev->driver->name);
+
+	/* Add common DT information about the device */
+	of_device_uevent(dev, env);
+
+	/* have the bus specific function add its stuff */
+	if (dev->bus && dev->bus->uevent) {
+		retval = dev->bus->uevent(dev, env); //如果bus type定义了uevent,这里会执行
+		if (retval)
+			pr_debug("device: '%s': %s: bus uevent() returned %d\n",
+				 dev_name(dev), __func__, retval);
+	}
+
+	/* have the class specific function add its stuff */
+	if (dev->class && dev->class->dev_uevent) { //如果class type定义了uevent,这里会执行
+		retval = dev->class->dev_uevent(dev, env);
+		if (retval)
+			pr_debug("device: '%s': %s: class uevent() "
+				 "returned %d\n", dev_name(dev),
+				 __func__, retval);
+	}
+
+	/* have the device type specific function add its stuff */
+	if (dev->type && dev->type->uevent) { //如果device type定义了uevent,这里会执行
+		retval = dev->type->uevent(dev, env);
+		if (retval)
+			pr_debug("device: '%s': %s: dev_type uevent() "
+				 "returned %d\n", dev_name(dev),
+				 __func__, retval);
+	}
+
+	return retval;
+}
+
+static const struct kset_uevent_ops device_uevent_ops = {
+    .filter =   dev_uevent_filter,
+    .name =     dev_uevent_name,
+    .uevent =   dev_uevent,
+};
+
