@@ -18,6 +18,7 @@
 \usepackage{setspace}
 \usepackage{fancyhdr}
 \usepackage{lastpage}
+\usepackage{titletoc}
 \usepackage{booktabs} %调整表格线与上下内容的间隔 
 \usepackage[contents=QUECTEL,color=red!30]{background}%添加水印
 \usepackage{xcolor}%定义了一些颜色  
@@ -25,7 +26,8 @@
 %\usepackage[pagestyles]{titlesec}%设置章节标题格式，居中(center)
 %\setmainfont{Arial}
 \setmainfont{Times New Roman}%设置英文主字体
-\setCJKmainfont{AR PL UKai TW MBE}%设置中文主字体
+%\setCJKmainfont{simsun.ttc}%设置中文主字体为宋体
+\setCJKmainfont[BoldFont={fzBoldSun.ttf}]{simsun.ttc}%设置中文主字体为楷体
 \setmonofont[Mapping={}]{SimSun}%设置等宽字体
 \setCJKsansfont{Arial}
 
@@ -35,7 +37,7 @@
 \titleformat{\section}{\LARGE\bfseries}{\thesection }{1em}{}%设置节字体大小，属性
 \titleformat{\subsection}{\Large\bfseries}{\thesubsection }{1em}{}%设置节字体大小，属性
 
-\newcommand{\chuhao}{\bf\fontsize{42pt}{\baselineskip}\selectfont}
+\newcommand{\chuhao}{\bf\fontsize{32pt}{\baselineskip}\selectfont}
 \newcommand{\sizefont}{\bf\fontsize{15pt}{\baselineskip}\selectfont}
 \newcommand{\xiaoyi}{\bf\fontsize{24pt}{\baselineskip}\selectfont}
 \newcommand{\xiaoer}{\bf\fontsize{18pt}{\baselineskip}\selectfont}
@@ -52,15 +54,20 @@
 
 \hypersetup{colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue}%设置url颜色，关闭引用的红色方框
 
-%在这里设置页眉，页脚
+%设置页眉，页脚
 \pagestyle{fancy}
 \lhead{\includegraphics[keepaspectratio,width=0.3\textwidth,height=0.25\textheight]{title/img/quectel_title.png}}%在页眉处插入图片
 \chead{} 
-\rhead{\textbf{LTE Module Series\\xxxxxx}} 
-\lfoot{\textbf{xxxxxx}} 
+\rhead{\textbf{LTE Module Series\\sound card boot faild}} 
+\lfoot{\textbf{sound card boot faild}} 
 \cfoot{\textbf{Confidential / Released}}%设置页脚的页码显示形式（2／4）
 \rfoot{\thepage/\pageref{LastPage}}
-\renewcommand{\headrulewidth}{2pt}%设置页眉线宽度 
+%\renewcommand{\headrule}{{\color{gray!50}%设置页眉颜色
+%\hrule width\headwidth height\headrulewidth \vskip-\headrulewidth}}
+%\renewcommand{\footrule}{{\color{gray!50}%设置页脚颜色
+%\vskip-\footruleskip\vskip-\footrulewidth
+%\hrule width\headwidth height\footrulewidth\vskip\footruleskip}}
+\renewcommand{\headrulewidth}{2pt}%设置页眉线宽度
 \renewcommand{\footrulewidth}{1pt}%设置页脚线宽度
 \setlength{\topskip}{0cm}%页眉与正文距离
 \setlength{\skip\footins}{3cm}
@@ -84,6 +91,9 @@ framexbottommargin=5pt,
 framesep=0pt,
 rulesep=0pt,
 }
+
+%定义颜色
+\definecolor{ubuntured}{RGB}{44,0,30}
 \DeclareCaptionFont{white}{\color{white}}
 \DeclareCaptionFormat{listing}{\colorbox{gray}{\parbox{\textwidth}{#1#2#3}}}
 \captionsetup[lstlisting]{format=listing,labelfont=white,textfont=white}
@@ -101,15 +111,25 @@ leftmargin=5mm,
 font=\footnotesize,
 }
 
-%设置框类型，双边，灰色
+%设置框类型，双边，灰色，背景10度灰阶
 \global\mdfdefinestyle{bothredline}{
 linecolor=gray,%线条颜色
 linewidth=3pt,%线宽
 topline=false,%不显示方框上方线条
 bottomline=false,%不显示方框底部线条
-leftmargin=0cm,
+leftmargin=5mm,
+rightmargin=5mm,
 backgroundcolor=gray!10,%加入背景色，灰色，阶度10
 font=\footnotesize,
+}
+
+%设置ubuntu效果框，左右缩进5mm
+\global\mdfdefinestyle{ubuntush}{
+backgroundcolor=ubuntured,
+fontcolor=white,
+hidealllines=true,
+leftmargin=5mm,
+rightmargin=5mm,
 }
 
 %设置代码目录树
@@ -117,14 +137,33 @@ font=\footnotesize,
 \renewcommand*\DTstyle{\ttfamily\textcolor{black}}
 
 %目录设置
+\renewcommand\contentsname{目 ~ 录}
+\titlecontents{chapter}[0pt]{\vspace{3mm}\addvspace{2pt}\filright\bfseries}%章节字体加粗
+              {\contentspush{\thecontentslabel\hspace{0.8em}}}
+              {}{\titlerule*[4pt]{.}\contentspage}%连接的点号间距为4pt
+\titlecontents{section}[1.6em]{\addvspace{2pt}\filright}
+              {\contentspush{\thecontentslabel\hspace{0.8em}}}
+              {}{\titlerule*[4pt]{.}\contentspage}
+\newcommand{\addchtoc}[1]{ %目录中加入新章节
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{#1}}
+\newcommand{\addsectoc}[1]{ %目录中加入新的 section
+\phantomsection
+\addcontentsline{toc}{section}{#1}}
 
-\definecolor{ubuntured}{RGB}{44,0,30}
 
 \begin{document}
+
 \begin{titlepage}
-\input{title/title.tex}
+\input{title/title.tex}%插入封面
 \end{titlepage}
-\input{title/define.tex}
-\input{title/rev.tex}
-\input{ch1.tex}
+
+\input{title/define.tex}%插入权限引用
+\addchtoc{Abount The Document}%添加rev页在目录中显示
+\input{title/rev.tex}%插入文档历史记录
+\addchtoc{Content}%添加目录页在目录中显示
+\tableofcontents%生成目录
+\input{ch1.tex}%正文开始
+
 \end{document}
