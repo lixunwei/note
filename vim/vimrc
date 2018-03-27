@@ -1,5 +1,11 @@
 Bundle 'davidhalter/jedi-vim'
 
+
+" Enable folding
+set foldmethod=indent
+set foldlevel=99
+let g:SimpylFold_docstring_preview=1
+nnoremap <space> za
 """"""""""""""""""""""
 " Quickly Run
 """"""""""""""""""""""
