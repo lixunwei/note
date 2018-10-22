@@ -1,3 +1,9 @@
+## 一. 下载字体安装
+```
 1. mkdir 755 /usr/share/fonts/simsun
 2. cp simsun.tty /usr/share/fonts/simsun
 3. fc-cache -fv
+```
+
+## 二. 常用字体安装
+1.sudo apt-get intall ttf-mscorefonts-installer (包括times new romas)
