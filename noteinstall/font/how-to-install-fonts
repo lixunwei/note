@@ -1,0 +1,3 @@
+1. mkdir 755 /usr/share/fonts/simsun
+2. cp simsun.tty /usr/share/fonts/simsun
+3. fc-cache -fv
